@@ -11,6 +11,9 @@ SINGLE_PORT_UDP="hy2"
 # Clash Meta 订阅名称（显示在客户端中）
 SUBSCRIPTION_NAME="MySub"
 
+# CF 优选测速开关（false=跳过测速，直接用第一个域名，加快启动）
+ENABLE_CF_SPEEDTEST=true
+
 # ================== CF 优选域名列表 ==================
 CF_DOMAINS=(
     "isp.qzz.io"
@@ -91,9 +94,14 @@ select_best_cf_domain() {
     if [ -n "$best" ]; then echo "$best"; else echo "${CF_DOMAINS[0]}"; fi
 }
 
-echo "[CF优选] 正在进行高精度测速 (Sample: 5x, Interval: 0.5s)..."
-BEST_CF_DOMAIN=$(select_best_cf_domain)
-echo "[CF优选] 最终选择: $BEST_CF_DOMAIN"
+if [ "$ENABLE_CF_SPEEDTEST" = true ]; then
+    echo "[CF优选] 正在进行高精度测速 (Sample: 5x, Interval: 0.5s)..."
+    BEST_CF_DOMAIN=$(select_best_cf_domain)
+    echo "[CF优选] 最终选择: $BEST_CF_DOMAIN"
+else
+    BEST_CF_DOMAIN="${CF_DOMAINS[0]}"
+    echo "[CF优选] 已禁用测速，使用默认: $BEST_CF_DOMAIN"
+fi
 
 # ================== 获取端口 ==================
 [ -n "$SERVER_PORT" ] && PORTS_STRING="$SERVER_PORT" || PORTS_STRING=""
@@ -340,8 +348,8 @@ proxies:
   - name: "自动选择"
     type: url-test
     url: http://www.gstatic.com/generate_204
-    interval: 300
-    tolerance: 50
+    interval: 600
+    tolerance: 100
     proxies:
 \`;
     
@@ -389,81 +397,7 @@ http.createServer((req, res) => {
             res.end('error: ' + e.message); 
         }
     }
-    // 首页：显示订阅链接
-    else if (url === '/' || url === '') {
-        res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
-        const html = \`<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>订阅服务</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
-        h1 { color: #333; }
-        .link-box { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
-        .link-box h3 { margin-top: 0; color: #555; }
-        code { background: #e8e8e8; padding: 5px 10px; border-radius: 3px; display: block; margin: 10px 0; word-break: break-all; }
-        .copy-btn { background: #4CAF50; color: white; border: none; padding: 8px 15px; border-radius: 3px; cursor: pointer; }
-        .copy-btn:hover { background: #45a049; }
-    </style>
-</head>
-<body>
-    <h1>🚀 代理订阅服务</h1>
-    
-    <div class="link-box">
-        <h3>📱 Clash Meta 订阅</h3>
-        <p>适用于: Clash Meta / Clash Verge / Clash.Meta</p>
-        <code id="clash-link">http://${PUBLIC_IP}:${HTTP_PORT}/clash</code>
-        <button class="copy-btn" onclick="copy('clash-link')">复制链接</button>
-    </div>
-    
-    <div class="link-box">
-        <h3>📄 通用订阅 (原始格式)</h3>
-        <p>适用于: V2Ray / V2RayN / Shadowrocket 等</p>
-        <code id="sub-link">http://${PUBLIC_IP}:${HTTP_PORT}/sub</code>
-        <button class="copy-btn" onclick="copy('sub-link')">复制链接</button>
-    </div>
-    
-    <div class="link-box">
-        <h3>ℹ️ 节点信息</h3>
-        <p>UUID: <code style="display:inline">${UUID}</code></p>
-    </div>
-    
-    <script>
-        function copy(id) {
-            const text = document.getElementById(id).textContent;
-            
-            // 创建临时 textarea 元素
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            
-            // 选中文本
-            textarea.select();
-            textarea.setSelectionRange(0, 99999); // 移动端兼容
-            
-            // 执行复制
-            try {
-                const successful = document.execCommand('copy');
-                if (successful) {
-                    alert('✅ 已复制到剪贴板！');
-                } else {
-                    alert('❌ 复制失败，请手动复制');
-                }
-            } catch (err) {
-                alert('❌ 复制失败: ' + err);
-            }
-            
-            // 清理
-            document.body.removeChild(textarea);
-        }
-    </script>
-</body>
-</html>\`;
-        res.end(html);
-    }
+    // 其他路径：返回 404
     else { 
         res.writeHead(404); 
         res.end('404 Not Found'); 
@@ -621,7 +555,6 @@ echo ""
 echo "订阅链接:"
 echo "  - Clash Meta: $CLASH_URL"
 echo "  - 通用订阅: $SUB_URL"
-echo "  - 管理页面: http://${PUBLIC_IP}:${HTTP_PORT}/"
 echo "==================================================="
 echo ""
 
